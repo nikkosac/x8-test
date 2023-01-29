@@ -1,0 +1,77 @@
+# Airflow Helm chart production guide
+# https://airflow.apache.org/docs/helm-chart/stable/production-guide.html
+
+# TODO: decide if we should hide this or not
+config:
+  webserver:
+    expose_config: 'True'  # by default this is 'False'
+
+# TODO: decide which executor to use
+# https://airflow.apache.org/docs/apache-airflow/1.10.14/executor/kubernetes.html#:~:text=The%20Kubernetes%20Executor%20has%20an,the%20time%2C%20regardless%20of%20workloads.
+# CeleryExecutor task-runner pods are long-lived, while KubernetesExecutor task-runner pods are spun up as needed
+# If spin up time is a concern, use CeleryExecutor
+# one of: localexecutor, localkubernetesexecutor, celeryexecutor, kubernetesexecutor, celerykubernetesexecutor
+# The default is celeryexecutor
+executor: "celeryexecutor"
+
+# Load examples to test. Remove this before sending to production
+# A good one to try is the `tutorial` DAG
+# https://airflow.apache.org/docs/helm-chart/stable/airflow-configuration.html
+extraEnv: |
+  - name: AIRFLOW__CORE__LOAD_EXAMPLES
+    value: 'True'
+
+# For XS Group, we custom build airflow with some Python dependences, and some DAGs
+# With minikube: `eval $(minikube docker-env)` then `docker build --tag xs-airflow:0.0.1 .`
+# TODO: figure out an alternative way to bundling DAGs which doesn't require recompiling the docker image again and again
+# https://airflow.apache.org/docs/helm-chart/stable/manage-dags-files.html#manage-dags-files
+images:
+  airflow:
+    repository: xs-airflow
+    tag: 0.0.1
+
+# TODO: figure out Connections, Variables, and Environment Variables
+# https://airflow.apache.org/docs/helm-chart/stable/adding-connections-and-variables.html#adding-connections-variables-and-environment-variables
+# Need to pass in IP address, user, pass of MSSQL, Neo4j
+
+# TODO: figure out persisting logs
+# https://airflow.apache.org/docs/helm-chart/stable/manage-logs.html#manage-logs
+# As is, logs live as long as the ephemeral Pods which they run on (enabled: false)
+logs:
+  persistence:
+    enabled: false
+
+# https://airflow.apache.org/docs/helm-chart/stable/production-guide.html#pgbouncer
+# This chart uses PostgresSQL, and pgbouncer keeps the connection pool from overflowing
+pgbouncer:
+  enabled: true
+# depending on the size of airflow instance, may want to set these too
+# pgbouncer:
+  # The maximum number of connections to PgBouncer
+  # maxClientConn: 100
+  # The maximum number of server connections to the metadata database from PgBouncer
+  # metadataPoolSize: 10
+  # The maximum number of server connections to the result backend database from PgBouncer
+  # resultBackendPoolSize: 5
+
+# https://airflow.apache.org/docs/helm-chart/stable/parameters-ref.html#ingress
+# This creates an Ingress resource, so that Airflow is available on http://public.ip:80/
+ingress:
+  web:
+    enabled: true
+
+# https://airflow.apache.org/docs/helm-chart/stable/production-guide.html#webserver-secret-key
+# webserverSecretKey is generated as follows:
+# python3 -c 'import secrets; print(secrets.token_hex(16))'
+webserverSecretKey: 93d993ce543dcd3d188021066b2d0b6e
+
+# Set admin user/pass
+webserver:
+  defaultUser:
+    enabled: true
+    role: Admin
+    username: admin
+    email: admin@example.com
+    firstName: admin
+    lastName: user
+    password: admin
